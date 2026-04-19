@@ -1,67 +1,39 @@
-# 🐍 BHyDra IA
+# 🐍 BHyDra IA - Assistente Inteligente com Memória
 
-A **BHyDra IA** é uma assistente virtual inteligente desenvolvida em Python, utilizando a infraestrutura da **Groq Cloud** e o modelo de linguagem **Llama 3.1**. O projeto foi criado para explorar a integração de APIs de IA generativa com interfaces web modernas e seguras.
+O **BHyDra IA** é um assistente conversacional desenvolvido para facilitar a interação com modelos de linguagem avançados, contando com um sistema de persistência de dados para que você nunca perca o contexto das suas conversas.
 
-🚀 **Acesse o projeto online:** https://bhydra.streamlit.app/
-
----
+## 🚀 Funcionalidades
+- **Histórico Persistente:** Conversas salvas automaticamente via Supabase.
+- **Gestão de Chats (CRUD):** Criação, listagem e deleção de chats diretamente pela interface.
+- **Análise de Documentos:** Suporte para upload de arquivos (PDF/TXT) para análise contextual.
+- **Interface Neon:** UI moderna e responsiva otimizada para Desktop e Mobile.
+- **Títulos Automáticos:** O sistema gera títulos inteligentes para suas conversas baseados no seu primeiro prompt.
 
 ## 🛠️ Tecnologias Utilizadas
+- **Linguagem:** [Python](https://www.python.org/)
+- **Framework Web:** [Streamlit](https://streamlit.io/)
+- **Inteligência Artificial:** [Groq API](https://groq.com/) (Modelo Llama 3.1 8B)
+- **Banco de Dados (Backend):** [Supabase](https://supabase.com/) (PostgreSQL)
+- **Versionamento:** Git & GitHub
 
-* **Linguagem:** Python 3.x
-* **Interface:** [Streamlit](https://streamlit.io/) (Framework para apps de dados)
-* **Cérebro da IA:** [Groq Cloud](https://groq.com/) (Modelo Llama 3.1 8B)
-* **Segurança:** Variáveis de ambiente via Streamlit Secrets
-* **Versionamento:** Git & GitHub
+## 📂 Estrutura do Projeto
+- `app.py`: Código principal da aplicação e interface.
+- `requirements.txt`: Dependências do projeto.
+- `.streamlit/`: Configurações de tema e segredos locais (não versionado por segurança).
 
----
-
-## 📌 Funcionalidades
-
-* 💬 Chat em tempo real com memória de contexto na sessão.
-* ⚡ Respostas ultra-rápidas utilizando a tecnologia de inferência da Groq.
-* 📱 Interface responsiva (funciona em PC e Celular).
-* 🔒 Arquitetura segura (chaves de API protegidas).
-
----
-
-## 🚀 Como rodar o projeto localmente
-
-Se você é desenvolvedor e quer testar na sua máquina, siga os passos:
-
-1. **Clone o repositório:**
+## 👷 Como executar localmente
+1. Clone o repositório:
    ```bash
    git clone [https://github.com/BrunoAlexandreXX/bhydra-project.git](https://github.com/BrunoAlexandreXX/bhydra-project.git)
-   cd bhydra-project
-Crie um ambiente virtual e instale as dependências:
+Instale as dependências:
 
 Bash
-python -m venv venv
-source venv/bin/activate  # No Windows: venv\Scripts\activate
 pip install -r requirements.txt
-Configure sua chave:
-Crie uma pasta .streamlit/ e dentro dela um arquivo secrets.toml com sua chave:
+Configure seus secrets.toml na pasta .streamlit/ com as chaves da Groq e Supabase.
 
-Ini, TOML
-GROQ_API_KEY = "sua_chave_aqui"
-Inicie o App:
+Execute o app:
 
 Bash
 streamlit run app.py
-🧪 Foco em QA (Qualidade)
-Como entusiasta da área de Quality Assurance, este projeto foi desenvolvido seguindo boas práticas de:
+Desenvolvido por Bruno Alexandre A. Ribeiro como parte do portfólio de Engenharia de Software e QA.
 
-Segurança: Prevenção de exposição de credenciais (Secret Scanning).
-
-Clean Code: Estrutura de código legível e modular.
-
-User Experience: Interface intuitiva e feedback de erro amigável.
-
-👤 Autor
-Bruno Alexandre
-
-Estudante de Engenharia de Software
-
-Atuando como Suporte Técnico 
-
-Focado em transição de carreira para QA Junior/ Dev.
