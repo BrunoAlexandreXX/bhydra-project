@@ -1,3 +1,4 @@
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_svg.svg)](https://bhydra.streamlit.app)
 # 🐍 BHyDra IA - Assistente Inteligente com Memória
 
 O **BHyDra IA** é um assistente conversacional desenvolvido para facilitar a interação com modelos de linguagem avançados, contando com um sistema de persistência de dados para que você nunca perca o contexto das suas conversas.
