@@ -3,7 +3,8 @@ from supabase import create_client
 from groq import Groq
 import uuid
 
-# --- 1. CONFIGURAÇÃO DA PÁGINA ---
+# v1.2 - Sistema de CRUD Completo e Histórico Persistente
+# 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
     page_title="BHyDra IA", 
     page_icon="🐍", 
@@ -11,28 +12,27 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. UI/CSS (Sidebar Neon e Ajustes) ---
+# 2. UI/CSS NEON
 st.markdown("""
     <style>
         [data-testid="stSidebar"] { border-right: 2px solid #00ffa3; }
-        .stChatInputContainer { padding-bottom: 20px; }
         footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. CONEXÃO COM SERVIÇOS ---
+# 3. CONEXÃO COM SERVIÇOS
 @st.cache_resource
 def init_connections():
     try:
         sb = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
         gq = Groq(api_key=st.secrets["GROQ_KEY"])
         return sb, gq, True
-    except:
+    except Exception as e:
         return None, None, False
 
 supabase, groq, conectado = init_connections()
 
-# --- 4. FUNÇÕES DE OPERAÇÃO DO BANCO (CRUD) ---
+# 4. FUNÇÕES DE OPERAÇÃO DO BANCO (CRUD)
 def carregar_mensagens(chat_id):
     if conectado:
         res = supabase.table("chat_history").select("*").eq("chat_id", chat_id).order("created_at").execute()
@@ -42,7 +42,6 @@ def carregar_mensagens(chat_id):
 def apagar_chat(chat_id):
     if conectado and chat_id:
         try:
-            # Exclusão em cascata manual (mensagens -> chat)
             supabase.table("chat_history").delete().eq("chat_id", chat_id).execute()
             supabase.table("chats").delete().eq("id", chat_id).execute()
             st.session_state.messages = []
@@ -51,17 +50,16 @@ def apagar_chat(chat_id):
         except Exception as e:
             st.error(f"Erro ao apagar: {e}")
 
-# --- 5. GESTÃO DE ESTADO ---
+# 5. GESTÃO DE ESTADO
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "chat_id" not in st.session_state:
     st.session_state.chat_id = None
 
-# --- 6. BARRA LATERAL (MENU) ---
+# 6. BARRA LATERAL (MENU)
 with st.sidebar:
     st.title("🐍 Menu BHyDra")
     
-    # Botões de Ação Superior
     col1, col2 = st.columns(2)
     with col1:
         if st.button("➕ Novo Chat", use_container_width=True):
@@ -74,8 +72,6 @@ with st.sidebar:
                 apagar_chat(st.session_state.chat_id)
 
     st.divider()
-    
-    # Gestão de Arquivos
     uploaded_file = st.file_uploader("📂 Anexar Documento", type=['pdf', 'txt'])
     
     st.divider()
@@ -87,31 +83,25 @@ with st.sidebar:
             for c in chats.data:
                 label = f"💬 {c['title'][:20]}..."
                 if st.button(label, key=c['id'], use_container_width=True):
-                    st.session_state.chat_id = c['id']
                     st.session_state.messages = carregar_mensagens(c['id'])
+                    st.session_state.chat_id = c['id']
                     st.rerun()
         except:
-            st.caption("Erro ao carregar histórico.")
-    else:
-        st.error("Modo Offline")
+            st.caption("Sem histórico disponível.")
 
-# --- 7. ÁREA DE CHAT ---
+# 7. ÁREA DE CHAT PRINCIPAL
 st.title("🐍 BHyDra IA")
 
-# Mostrar mensagens
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Processar entrada
 if prompt := st.chat_input("Diga algo para a BHyDra..."):
-    # Criar chat no banco se for o primeiro prompt
     if conectado and st.session_state.chat_id is None:
         titulo = (prompt[:30] + '...') if len(prompt) > 30 else prompt
         res = supabase.table("chats").insert({"title": titulo}).execute()
         st.session_state.chat_id = res.data[0]["id"]
 
-    # Adicionar mensagem do usuário
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -121,7 +111,6 @@ if prompt := st.chat_input("Diga algo para a BHyDra..."):
             "chat_id": st.session_state.chat_id, "role": "user", "content": prompt
         }).execute()
 
-    # Resposta da IA
     with st.chat_message("assistant", avatar="🐍"):
         try:
             ctx = f"\n[Arquivo: {uploaded_file.name}]" if uploaded_file else ""
@@ -138,4 +127,4 @@ if prompt := st.chat_input("Diga algo para a BHyDra..."):
                     "chat_id": st.session_state.chat_id, "role": "assistant", "content": resp
                 }).execute()
         except Exception as e:
-            st.error(f"Erro na Groq: {e}")
+            st.error(f"Erro: {e}")
