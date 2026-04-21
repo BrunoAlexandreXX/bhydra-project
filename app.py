@@ -1,147 +1,138 @@
 import streamlit as st
 from supabase import create_client
+from zhipuai import ZhipuAI
 from groq import Groq
-import uuid
+from datetime import datetime
 
-# --- 1. CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(
-    page_title="BHyDra IA", 
-    page_icon="🐍", 
-    layout="wide", 
-    initial_sidebar_state="collapsed" # Melhora a experiência no telemóvel
-)
+# 1. SETUP E MODELOS ATUALIZADOS (2026)
+st.set_page_config(page_title="BHyDra IA", page_icon="🐍", layout="wide")
+GROQ_MODEL = "llama-3.3-70b-versatile"
+ZHIPU_MODEL = "glm-4-flash"
+DATA_HOJE = datetime.now().strftime("%d/%m/%Y")
 
-# --- 2. UI/CSS (Ajustes de Responsividade e Estética) ---
-st.markdown("""
-    <style>
-        /* Ajuste para ecrãs de telemóvel */
-        @media (max-width: 640px) {
-            .main .block-container { padding: 1rem !important; }
-            [data-testid="stSidebar"] { width: 85vw !important; }
-        }
-        [data-testid="stSidebar"] { border-right: 2px solid #00ffa3; }
-        footer {visibility: hidden;}
-        .stChatInputContainer { padding-bottom: 20px; }
-    </style>
-""", unsafe_allow_html=True)
+# 2. CONEXÕES
+supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+client_glm = ZhipuAI(api_key=st.secrets["GLM_KEY"])
+client_groq = Groq(api_key=st.secrets["GROQ_KEY"])
 
-# --- 3. CONEXÃO COM SERVIÇOS (Com tratamento de erro robusto) ---
-@st.cache_resource
-def init_connections():
-    try:
-        # Tenta aceder aos secrets do Streamlit Cloud
-        sb_url = st.secrets.get("SUPABASE_URL")
-        sb_key = st.secrets.get("SUPABASE_KEY")
-        gq_key = st.secrets.get("GROQ_KEY")
-        
-        if not all([sb_url, sb_key, gq_key]):
-            return None, None, False
-            
-        sb = create_client(sb_url, sb_key)
-        gq = Groq(api_key=gq_key)
-        return sb, gq, True
-    except Exception:
-        return None, None, False
+# 3. PERSONALIDADE E CONTEXTO TEMPORAL
+SYSTEM_PROMPT = f"""Você é a BHyDra IA. Hoje é {DATA_HOJE}. 
+- Responda de forma direta e técnica.
+- Se for uma saudação, seja breve.
+- Você tem acesso à internet para validar dados de 2026 via ZhipuAI."""
 
-supabase, groq, conectado = init_connections()
-
-# --- 4. FUNÇÕES CRUD ---
-def carregar_mensagens(chat_id):
-    if conectado and chat_id:
-        try:
-            res = supabase.table("chat_history").select("*").eq("chat_id", chat_id).order("created_at").execute()
-            return [{"role": m["role"], "content": m["content"]} for m in res.data]
-        except: return []
-    return []
-
-def apagar_chat(chat_id):
-    if conectado and chat_id:
-        try:
-            supabase.table("chat_history").delete().eq("chat_id", chat_id).execute()
-            supabase.table("chats").delete().eq("id", chat_id).execute()
-            st.session_state.messages = []
-            st.session_state.chat_id = None
-            st.rerun()
-        except Exception as e:
-            st.error(f"Erro ao apagar: {e}")
-
-# --- 5. GESTÃO DE ESTADO ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "chat_id" not in st.session_state:
-    st.session_state.chat_id = None
-
-# --- 6. BARRA LATERAL (MENU) ---
+# --- SIDEBAR (HISTÓRICO E CONTROLES) ---
 with st.sidebar:
-    st.title("🐍 Menu BHyDra")
+    st.image("https://raw.githubusercontent.com/BrunoAlexandreXX/bhydra-project/main/bhydra_logo.jpeg", width=80)
+    st.title("Menu BHyDra")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("➕ Novo", use_container_width=True):
-            st.session_state.messages = []
-            st.session_state.chat_id = None
-            st.rerun()
-    with col2:
-        if st.session_state.chat_id:
-            if st.button("🗑️", use_container_width=True, type="primary"):
-                apagar_chat(st.session_state.chat_id)
+    if st.button("➕ Nova Conversa", type="primary", use_container_width=True):
+        if "chat_id" in st.session_state: del st.session_state.chat_id
+        st.rerun()
 
     st.divider()
-    uploaded_file = st.file_uploader("📂 Documento", type=['pdf', 'txt'])
+    
+    # OPÇÃO DE ANEXAR (Ativa)
+    arquivo_anexado = st.file_uploader("📂 Anexar Documento", type=['pdf', 'txt', 'csv'])
     
     st.divider()
-    st.subheader("🕒 Histórico")
+    st.subheader("Conversas Recentes")
     
-    if conectado:
-        try:
-            chats = supabase.table("chats").select("id, title").order("created_at", desc=True).limit(10).execute()
-            for c in chats.data:
-                if st.button(f"💬 {c['title'][:15]}...", key=c['id'], use_container_width=True):
-                    st.session_state.chat_id = c['id']
-                    st.session_state.messages = carregar_mensagens(c['id'])
-                    st.rerun()
-        except:
-            st.caption("Erro ao ligar ao banco.")
-
-# --- 7. ÁREA DE CHAT ---
-st.title("🐍 BHyDra IA")
-
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-if prompt := st.chat_input("Escreve para a BHyDra..."):
-    # Verifica se a IA está disponível antes de começar
-    if not conectado or groq is None:
-        st.error("Serviço temporariamente offline. Verifique as chaves de API.")
-        st.stop()
-
-    if st.session_state.chat_id is None:
-        titulo = (prompt[:30] + '...') if len(prompt) > 30 else prompt
-        res = supabase.table("chats").insert({"title": titulo}).execute()
-        st.session_state.chat_id = res.data[0]["id"]
-
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    # Carrega chats do Supabase
+    chats = supabase.table("chats").select("*").order("created_at", desc=True).limit(10).execute().data
     
-    supabase.table("chat_history").insert({
-        "chat_id": st.session_state.chat_id, "role": "user", "content": prompt
-    }).execute()
+    for c in chats:
+        col_btn, col_del = st.columns([0.85, 0.15])
+        with col_btn:
+            if st.button(f"💬 {c['title']}", key=f"chat_{c['id']}", use_container_width=True):
+                st.session_state.chat_id = c['id']
+                st.rerun()
+        with col_del:
+            if st.button("×", key=f"del_{c['id']}", help="Apagar esta conversa"):
+                supabase.table("chat_history").delete().eq("chat_id", c['id']).execute()
+                supabase.table("chats").delete().eq("id", c['id']).execute()
+                if st.session_state.get("chat_id") == c['id']:
+                    del st.session_state.chat_id
+                st.rerun()
 
-    with st.chat_message("assistant", avatar="🐍"):
+    # --- BOTÃO DISCRETO PARA APAGAR TUDO (CORREÇÃO UUID) ---
+    st.write("<br>" * 10, unsafe_allow_html=True) 
+    st.divider()
+    
+    if st.button("Limpar todo o histórico", help="Atenção: Isso apagará TODAS as conversas permanentemente", use_container_width=True):
         try:
-            ctx = f"\n[Documento: {uploaded_file.name}]" if uploaded_file else ""
-            completion = groq.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "system", "content": f"És a BHyDra IA. {ctx}"}] + st.session_state.messages
-            )
-            resp = completion.choices[0].message.content
-            st.markdown(resp)
+            # Filtro UUID nulo compatível com PostgreSQL para deletar todos os registros
+            null_uuid = "00000000-0000-0000-0000-000000000000"
             
-            st.session_state.messages.append({"role": "assistant", "content": resp})
-            supabase.table("chat_history").insert({
-                "chat_id": st.session_state.chat_id, "role": "assistant", "content": resp
-            }).execute()
+            # Deleta mensagens e depois os chats
+            supabase.table("chat_history").delete().neq("id", null_uuid).execute()
+            supabase.table("chats").delete().neq("id", null_uuid).execute()
+            
+            if "chat_id" in st.session_state: del st.session_state.chat_id
+            st.success("Histórico limpo!")
+            st.rerun()
         except Exception as e:
-            st.error(f"Erro na resposta: {e}")
+            st.error(f"Erro ao limpar: {str(e)}")
+
+# --- ÁREA PRINCIPAL DO CHAT ---
+historico_db = []
+
+if "chat_id" in st.session_state:
+    info_atual = supabase.table("chats").select("title").eq("id", st.session_state.chat_id).execute().data
+    st.header(f"🐍 {info_atual[0]['title'] if info_atual else 'BHyDra'}")
+    
+    historico_db = supabase.table("chat_history").select("*").eq("chat_id", st.session_state.chat_id).order("created_at").execute().data
+    for msg in historico_db:
+        with st.chat_message(msg['role'], avatar="🐍" if msg['role'] == "assistant" else "👤"):
+            st.markdown(msg['content'])
+
+# --- ENTRADA E RESPOSTA ---
+if prompt := st.chat_input("Dê um comando para a BHyDra..."):
+    
+    # 1. GERAÇÃO AUTOMÁTICA DE TEMA (Tema Instantâneo)
+    if "chat_id" not in st.session_state:
+        try:
+            res_tema = client_groq.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[{"role": "user", "content": f"Resuma em 2 palavras: {prompt}"}]
+            ).choices[0].message.content.replace('"', '')[:20]
+        except:
+            res_tema = prompt[:15]
+        
+        novo_chat = supabase.table("chats").insert({"title": res_tema, "user_id": "bruno_ceo"}).execute()
+        st.session_state.chat_id = novo_chat.data[0]['id']
+
+    # 2. SALVAR COMANDO DO USUÁRIO
+    with st.chat_message("user", avatar="👤"):
+        st.markdown(prompt)
+    supabase.table("chat_history").insert({"chat_id": st.session_state.chat_id, "role": "user", "content": prompt}).execute()
+
+    # 3. RESPOSTA DUAL-CORE COM ANEXO
+    with st.chat_message("assistant", avatar="🐍"):
+        with st.spinner("BHyDra processando..."):
+            txt_contexto = ""
+            if arquivo_anexado:
+                txt_contexto = f"\n\n[DADOS DO ARQUIVO]: {arquivo_anexado.read().decode('utf-8', errors='ignore')}"
+
+            msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+            for m in historico_db[-3:]: msgs.append({"role": m['role'], "content": m['content']})
+            msgs.append({"role": "user", "content": prompt + txt_contexto})
+
+            try:
+                # Decide se usa Groq (Geral) ou ZhipuAI (Internet/2026)
+                if any(k in prompt.lower() for k in ["hoje", "notícia", "fii", "2026", "agora"]):
+                    search_res = client_glm.chat.completions.create(
+                        model=ZHIPU_MODEL,
+                        messages=msgs,
+                        tools=[{"type": "web_search", "web_search": {"search_query": f"{prompt} em 2026"}}]
+                    )
+                    res_final = search_res.choices[0].message.content
+                else:
+                    res_final = client_groq.chat.completions.create(model=GROQ_MODEL, messages=msgs).choices[0].message.content
+            except:
+                res_final = client_glm.chat.completions.create(model=ZHIPU_MODEL, messages=msgs).choices[0].message.content
+
+            st.markdown(res_final)
+
+    # 4. SALVAR RESPOSTA DA IA
+    supabase.table("chat_history").insert({"chat_id": st.session_state.chat_id, "role": "assistant", "content": res_final}).execute()
